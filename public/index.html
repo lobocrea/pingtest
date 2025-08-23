@@ -44,6 +44,34 @@
             font-size: 1.1em;
         }
 
+        .url-input-section {
+            margin-bottom: 30px;
+        }
+
+        .url-label {
+            display: block;
+            color: #333;
+            font-weight: 600;
+            margin-bottom: 10px;
+            text-align: left;
+        }
+
+        .url-input {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #e9ecef;
+            border-radius: 10px;
+            font-size: 16px;
+            margin-bottom: 15px;
+            transition: border-color 0.3s ease;
+        }
+
+        .url-input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
         .url-display {
             background: #f8f9fa;
             border: 2px solid #e9ecef;
@@ -53,6 +81,7 @@
             font-family: 'Courier New', monospace;
             word-break: break-all;
             color: #495057;
+            text-align: left;
         }
 
         .button-group {
@@ -250,11 +279,21 @@
 <body>
     <div class="container">
         <h1>🌐 Express Ping Checker</h1>
-        <p class="subtitle">Verificador de estado de sitios web</p>
+        <p class="subtitle">Verificador de estado de sitios web con navegador headless</p>
         
-        <div class="url-display">
-            <strong>URL objetivo:</strong><br>
-            https://icp.administracionelectronica.gob.es/icpplus/index.html
+        <div class="url-input-section">
+            <label for="urlInput" class="url-label">URL a verificar:</label>
+            <input 
+                type="url" 
+                id="urlInput" 
+                class="url-input" 
+                value="https://icp.administracionelectronica.gob.es/icpplus/index.html"
+                placeholder="http://ejemplo.com o https://ejemplo.com"
+            >
+            <div class="url-display" id="urlDisplay">
+                <strong>URL actual:</strong><br>
+                <span id="currentUrl">https://icp.administracionelectronica.gob.es/icpplus/index.html</span>
+            </div>
         </div>
 
         <div class="button-group">
@@ -280,12 +319,34 @@
 
         // Función para hacer ping
         async function doPing() {
+            const url = document.getElementById('urlInput').value.trim();
+            
+            if (!url) {
+                displayError('Por favor, ingresa una URL válida');
+                return;
+            }
+            
+            // Agregar protocolo si no existe
+            let finalUrl = url;
+            if (!url.startsWith('http://') && !url.startsWith('https://')) {
+                finalUrl = 'https://' + url;
+            }
+            
+            // Actualizar URL display
+            document.getElementById('currentUrl').textContent = finalUrl;
+            
             pingBtn.disabled = true;
-            pingBtnText.innerHTML = '<span class="loading"></span> Haciendo ping...';
+            pingBtnText.innerHTML = '<span class="loading"></span> Renderizando página...';
             resultDiv.style.display = 'none';
 
             try {
-                const response = await fetch('/api/ping');
+                const response = await fetch('/api/ping', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ url: finalUrl })
+                });
                 const data = await response.json();
                 
                 displayPingResult(data);
@@ -293,7 +354,7 @@
                 displayError('Error de conexión: ' + error.message);
             } finally {
                 pingBtn.disabled = false;
-                pingBtnText.innerHTML = '🚀 Hacer Ping';
+                pingBtnText.innerHTML = '🚀 Verificar Sitio';
             }
         }
 
@@ -362,6 +423,16 @@
                         <div class="detail-value">${data.responseTime} ms</div>
                     </div>
                     <div class="detail-item">
+                        <div class="detail-label">Título de la Página</div>
+                        <div class="detail-value">${data.title}</div>
+                    </div>
+                    ${data.redirected ? `
+                    <div class="detail-item">
+                        <div class="detail-label">URL Final</div>
+                        <div class="detail-value">${data.finalUrl}</div>
+                    </div>
+                    ` : ''}
+                    <div class="detail-item">
                         <div class="detail-label">Mensaje</div>
                         <div class="detail-value">${data.message}</div>
                     </div>
@@ -369,6 +440,12 @@
                         <div class="detail-label">Timestamp</div>
                         <div class="detail-value">${timestamp}</div>
                     </div>
+                    ${data.jsErrors && data.jsErrors.length > 0 ? `
+                    <div class="detail-item">
+                        <div class="detail-label">Errores JavaScript</div>
+                        <div class="detail-value">${data.jsErrors.join(', ')}</div>
+                    </div>
+                    ` : ''}
                     ${data.error ? `
                     <div class="detail-item">
                         <div class="detail-label">Error</div>
@@ -441,6 +518,18 @@
         // Event listeners
         pingBtn.addEventListener('click', doPing);
         serverInfoBtn.addEventListener('click', getServerInfo);
+        
+        // Actualizar URL display cuando cambie el input
+        document.getElementById('urlInput').addEventListener('input', function() {
+            document.getElementById('currentUrl').textContent = this.value || 'No especificada';
+        });
+        
+        // Permitir Enter para hacer ping
+        document.getElementById('urlInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                doPing();
+            }
+        });
 
         // Ejecutar ping automáticamente al cargar la página
         window.addEventListener('load', () => {

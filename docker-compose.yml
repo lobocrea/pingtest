@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  ping-checker:
+    build: .
+    container_name: express-ping-checker
+    ports:
+      - "3579:3579"
+    environment:
+      - NODE_ENV=production
+      - PORT=3579
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - ping-network
+
+networks:
+  ping-network:
+    driver: bridge

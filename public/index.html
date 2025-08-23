@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ping Status Checker</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.1);
+            max-width: 600px;
+            width: 100%;
+            text-align: center;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+            font-weight: 700;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 1.1em;
+        }
+
+        .url-display {
+            background: #f8f9fa;
+            border: 2px solid #e9ecef;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 30px;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 14px;
+            color: #495057;
+            word-break: break-all;
+        }
+
+        .ping-button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            border-radius: 50px;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-bottom: 30px;
+        }
+
+        .ping-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
+        }
+
+        .ping-button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .result-container {
+            margin-top: 30px;
+            padding: 20px;
+            border-radius: 15px;
+            transition: all 0.3s ease;
+        }
+
+        .result-container.success {
+            background: #d4edda;
+            border: 2px solid #c3e6cb;
+            color: #155724;
+        }
+
+        .result-container.redirect {
+            background: #fff3cd;
+            border: 2px solid #ffeaa7;
+            color: #856404;
+        }
+
+        .result-container.client-error {
+            background: #f8d7da;
+            border: 2px solid #f5c6cb;
+            color: #721c24;
+        }
+
+        .result-container.server-error {
+            background: #f8d7da;
+            border: 2px solid #f5c6cb;
+            color: #721c24;
+        }
+
+        .result-container.connection-error {
+            background: #f8d7da;
+            border: 2px solid #f5c6cb;
+            color: #721c24;
+        }
+
+        .result-container.internal-error {
+            background: #f8d7da;
+            border: 2px solid #f5c6cb;
+            color: #721c24;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: 600;
+            margin-bottom: 15px;
+            font-size: 14px;
+        }
+
+        .status-badge.success {
+            background: #28a745;
+            color: white;
+        }
+
+        .status-badge.redirect {
+            background: #ffc107;
+            color: #212529;
+        }
+
+        .status-badge.error {
+            background: #dc3545;
+            color: white;
+        }
+
+        .result-details {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .detail-item {
+            background: rgba(255, 255, 255, 0.7);
+            padding: 15px;
+            border-radius: 10px;
+            border: 1px solid rgba(0, 0, 0, 0.1);
+        }
+
+        .detail-label {
+            font-weight: 600;
+            margin-bottom: 5px;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .detail-value {
+            font-size: 16px;
+            font-weight: 500;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 30px 20px;
+            }
+            
+            h1 {
+                font-size: 2em;
+            }
+            
+            .result-details {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🌐 Ping Status Checker</h1>
+        <p class="subtitle">Verificador de estado de sitios web</p>
+        
+        <div class="url-display">
+            https://icp.administracionelectronica.gob.es/icpplus/index.html
+        </div>
+        
+        <button class="ping-button" onclick="checkPing()" id="pingButton">
+            Verificar Estado
+        </button>
+        
+        <div id="resultContainer" class="hidden">
+            <!-- Los resultados se mostrarán aquí -->
+        </div>
+    </div>
+
+    <script>
+        async function checkPing() {
+            const button = document.getElementById('pingButton');
+            const resultContainer = document.getElementById('resultContainer');
+            
+            // Mostrar estado de carga
+            button.innerHTML = '<span class="loading"></span>Verificando...';
+            button.disabled = true;
+            resultContainer.classList.add('hidden');
+            
+            try {
+                const response = await fetch('/api/ping');
+                const data = await response.json();
+                
+                // Mostrar resultados
+                displayResult(data);
+                
+            } catch (error) {
+                displayError(error.message);
+            }
+            
+            // Restaurar botón
+            button.innerHTML = 'Verificar Estado';
+            button.disabled = false;
+        }
+        
+        function displayResult(data) {
+            const resultContainer = document.getElementById('resultContainer');
+            
+            // Determinar clase CSS basada en la categoría
+            const categoryClass = data.statusCategory || 'error';
+            
+            // Determinar badge status
+            let badgeClass = 'error';
+            if (data.statusCategory === 'success') badgeClass = 'success';
+            else if (data.statusCategory === 'redirect') badgeClass = 'redirect';
+            
+            // Formatear tiempo de respuesta
+            const responseTimeText = data.responseTime > 0 ? `${data.responseTime}ms` : 'N/A';
+            
+            // Formatear timestamp
+            const timestamp = new Date(data.timestamp).toLocaleString('es-ES');
+            
+            resultContainer.className = `result-container ${categoryClass}`;
+            resultContainer.innerHTML = `
+                <div class="status-badge ${badgeClass}">
+                    HTTP ${data.status} - ${data.statusText || 'Unknown'}
+                </div>
+                <h3>${data.message}</h3>
+                
+                <div class="result-details">
+                    <div class="detail-item">
+                        <div class="detail-label">Estado</div>
+                        <div class="detail-value">${data.success ? '✅ Accesible' : '❌ No accesible'}</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">Código HTTP</div>
+                        <div class="detail-value">${data.status}</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">Tiempo de Respuesta</div>
+                        <div class="detail-value">${responseTimeText}</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">Verificado</div>
+                        <div class="detail-value">${timestamp}</div>
+                    </div>
+                </div>
+                
+                ${data.error ? `<div style="margin-top: 15px; padding: 10px; background: rgba(220, 53, 69, 0.1); border-radius: 8px;"><strong>Error:</strong> ${data.error}</div>` : ''}
+            `;
+            
+            resultContainer.classList.remove('hidden');
+        }
+        
+        function displayError(errorMessage) {
+            const resultContainer = document.getElementById('resultContainer');
+            
+            resultContainer.className = 'result-container internal-error';
+            resultContainer.innerHTML = `
+                <div class="status-badge error">Error</div>
+                <h3>Error del Sistema</h3>
+                <div style="margin-top: 15px; padding: 15px; background: rgba(220, 53, 69, 0.1); border-radius: 8px;">
+                    <strong>Detalles:</strong> ${errorMessage}
+                </div>
+            `;
+            
+            resultContainer.classList.remove('hidden');
+        }
+        
+        // Verificar automáticamente al cargar la página
+        window.addEventListener('load', () => {
+            setTimeout(checkPing, 1000);
+        });
+    </script>
+</body>
+</html>

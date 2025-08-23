@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ping Status Checker</title>
+    <title>Express Ping Checker</title>
     <style>
         * {
             margin: 0;
@@ -12,7 +12,7 @@
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
             display: flex;
@@ -24,8 +24,8 @@
         .container {
             background: white;
             border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
             padding: 40px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.1);
             max-width: 600px;
             width: 100%;
             text-align: center;
@@ -50,101 +50,98 @@
             border-radius: 10px;
             padding: 15px;
             margin-bottom: 30px;
-            font-family: 'Monaco', 'Menlo', monospace;
-            font-size: 14px;
-            color: #495057;
+            font-family: 'Courier New', monospace;
             word-break: break-all;
+            color: #495057;
         }
 
-        .ping-button {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        .button-group {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .btn {
+            background: linear-gradient(45deg, #667eea, #764ba2);
             color: white;
             border: none;
-            padding: 15px 40px;
+            padding: 15px 30px;
             border-radius: 50px;
-            font-size: 18px;
-            font-weight: 600;
             cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
             transition: all 0.3s ease;
-            margin-bottom: 30px;
+            min-width: 200px;
+            position: relative;
+            overflow: hidden;
         }
 
-        .ping-button:hover {
+        .btn:hover {
             transform: translateY(-2px);
-            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
         }
 
-        .ping-button:disabled {
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn:disabled {
             opacity: 0.6;
             cursor: not-allowed;
             transform: none;
         }
 
+        .btn.secondary {
+            background: linear-gradient(45deg, #28a745, #20c997);
+        }
+
+        .btn.secondary:hover {
+            box-shadow: 0 10px 20px rgba(40, 167, 69, 0.3);
+        }
+
         .result-container {
             margin-top: 30px;
-            padding: 20px;
+            padding: 25px;
             border-radius: 15px;
-            transition: all 0.3s ease;
+            border-left: 5px solid #ddd;
+            background: #f8f9fa;
+            display: none;
         }
 
         .result-container.success {
             background: #d4edda;
-            border: 2px solid #c3e6cb;
+            border-left-color: #28a745;
             color: #155724;
         }
 
-        .result-container.redirect {
+        .result-container.error {
+            background: #f8d7da;
+            border-left-color: #dc3545;
+            color: #721c24;
+        }
+
+        .result-container.warning {
             background: #fff3cd;
-            border: 2px solid #ffeaa7;
+            border-left-color: #ffc107;
             color: #856404;
         }
 
-        .result-container.client-error {
-            background: #f8d7da;
-            border: 2px solid #f5c6cb;
-            color: #721c24;
+        .result-container.info {
+            background: #d1ecf1;
+            border-left-color: #17a2b8;
+            color: #0c5460;
         }
 
-        .result-container.server-error {
-            background: #f8d7da;
-            border: 2px solid #f5c6cb;
-            color: #721c24;
-        }
-
-        .result-container.connection-error {
-            background: #f8d7da;
-            border: 2px solid #f5c6cb;
-            color: #721c24;
-        }
-
-        .result-container.internal-error {
-            background: #f8d7da;
-            border: 2px solid #f5c6cb;
-            color: #721c24;
-        }
-
-        .status-badge {
-            display: inline-block;
-            padding: 8px 16px;
-            border-radius: 20px;
+        .result-title {
+            font-size: 1.3em;
             font-weight: 600;
             margin-bottom: 15px;
-            font-size: 14px;
-        }
-
-        .status-badge.success {
-            background: #28a745;
-            color: white;
-        }
-
-        .status-badge.redirect {
-            background: #ffc107;
-            color: #212529;
-        }
-
-        .status-badge.error {
-            background: #dc3545;
-            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
         }
 
         .result-details {
@@ -158,51 +155,92 @@
             background: rgba(255, 255, 255, 0.7);
             padding: 15px;
             border-radius: 10px;
-            border: 1px solid rgba(0, 0, 0, 0.1);
+            text-align: left;
         }
 
         .detail-label {
             font-weight: 600;
+            color: #495057;
+            font-size: 0.9em;
             margin-bottom: 5px;
-            font-size: 12px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
         }
 
         .detail-value {
-            font-size: 16px;
-            font-weight: 500;
+            font-size: 1.1em;
+            word-break: break-word;
         }
 
         .loading {
             display: inline-block;
             width: 20px;
             height: 20px;
-            border: 3px solid #f3f3f3;
-            border-top: 3px solid #667eea;
+            border: 3px solid rgba(255, 255, 255, 0.3);
             border-radius: 50%;
-            animation: spin 1s linear infinite;
-            margin-right: 10px;
+            border-top-color: white;
+            animation: spin 1s ease-in-out infinite;
         }
 
         @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+            to { transform: rotate(360deg); }
         }
 
-        .hidden {
-            display: none;
+        .status-badge {
+            display: inline-block;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            font-weight: 600;
+            margin-left: 10px;
+        }
+
+        .status-success {
+            background: #28a745;
+            color: white;
+        }
+
+        .status-error {
+            background: #dc3545;
+            color: white;
+        }
+
+        .status-warning {
+            background: #ffc107;
+            color: #212529;
+        }
+
+        .server-info {
+            margin-top: 20px;
+            padding: 20px;
+            background: #e3f2fd;
+            border-radius: 10px;
+            border-left: 4px solid #2196f3;
+        }
+
+        .server-info h3 {
+            color: #1976d2;
+            margin-bottom: 15px;
         }
 
         @media (max-width: 768px) {
             .container {
-                padding: 30px 20px;
+                padding: 20px;
+                margin: 10px;
             }
-            
+
             h1 {
                 font-size: 2em;
             }
-            
+
+            .button-group {
+                flex-direction: column;
+                align-items: center;
+            }
+
+            .btn {
+                width: 100%;
+                max-width: 300px;
+            }
+
             .result-details {
                 grid-template-columns: 1fr;
             }
@@ -211,115 +249,205 @@
 </head>
 <body>
     <div class="container">
-        <h1>🌐 Ping Status Checker</h1>
+        <h1>🌐 Express Ping Checker</h1>
         <p class="subtitle">Verificador de estado de sitios web</p>
         
         <div class="url-display">
+            <strong>URL objetivo:</strong><br>
             https://icp.administracionelectronica.gob.es/icpplus/index.html
         </div>
-        
-        <button class="ping-button" onclick="checkPing()" id="pingButton">
-            Verificar Estado
-        </button>
-        
-        <div id="resultContainer" class="hidden">
-            <!-- Los resultados se mostrarán aquí -->
+
+        <div class="button-group">
+            <button id="pingBtn" class="btn">
+                <span id="pingBtnText">🚀 Hacer Ping</span>
+            </button>
+            <button id="serverInfoBtn" class="btn secondary">
+                <span id="serverInfoBtnText">📍 Info del Servidor</span>
+            </button>
         </div>
+
+        <div id="result" class="result-container"></div>
+        <div id="serverInfo" class="server-info" style="display: none;"></div>
     </div>
 
     <script>
-        async function checkPing() {
-            const button = document.getElementById('pingButton');
-            const resultContainer = document.getElementById('resultContainer');
-            
-            // Mostrar estado de carga
-            button.innerHTML = '<span class="loading"></span>Verificando...';
-            button.disabled = true;
-            resultContainer.classList.add('hidden');
-            
+        const pingBtn = document.getElementById('pingBtn');
+        const serverInfoBtn = document.getElementById('serverInfoBtn');
+        const resultDiv = document.getElementById('result');
+        const serverInfoDiv = document.getElementById('serverInfo');
+        const pingBtnText = document.getElementById('pingBtnText');
+        const serverInfoBtnText = document.getElementById('serverInfoBtnText');
+
+        // Función para hacer ping
+        async function doPing() {
+            pingBtn.disabled = true;
+            pingBtnText.innerHTML = '<span class="loading"></span> Haciendo ping...';
+            resultDiv.style.display = 'none';
+
             try {
                 const response = await fetch('/api/ping');
                 const data = await response.json();
                 
-                // Mostrar resultados
-                displayResult(data);
-                
+                displayPingResult(data);
             } catch (error) {
-                displayError(error.message);
+                displayError('Error de conexión: ' + error.message);
+            } finally {
+                pingBtn.disabled = false;
+                pingBtnText.innerHTML = '🚀 Hacer Ping';
             }
-            
-            // Restaurar botón
-            button.innerHTML = 'Verificar Estado';
-            button.disabled = false;
         }
-        
-        function displayResult(data) {
-            const resultContainer = document.getElementById('resultContainer');
+
+        // Función para obtener info del servidor
+        async function getServerInfo() {
+            serverInfoBtn.disabled = true;
+            serverInfoBtnText.innerHTML = '<span class="loading"></span> Obteniendo info...';
+            serverInfoDiv.style.display = 'none';
+
+            try {
+                const response = await fetch('/api/server-info');
+                const data = await response.json();
+                
+                displayServerInfo(data);
+            } catch (error) {
+                displayError('Error al obtener información del servidor: ' + error.message);
+            } finally {
+                serverInfoBtn.disabled = false;
+                serverInfoBtnText.innerHTML = '📍 Info del Servidor';
+            }
+        }
+
+        // Mostrar resultado del ping
+        function displayPingResult(data) {
+            resultDiv.style.display = 'block';
             
-            // Determinar clase CSS basada en la categoría
-            const categoryClass = data.statusCategory || 'error';
+            let statusClass = 'info';
+            let statusBadge = '';
+            let icon = '📡';
+
+            if (data.success) {
+                if (data.status >= 200 && data.status < 300) {
+                    statusClass = 'success';
+                    statusBadge = '<span class="status-badge status-success">✅ ONLINE</span>';
+                    icon = '✅';
+                } else if (data.status >= 300 && data.status < 400) {
+                    statusClass = 'warning';
+                    statusBadge = '<span class="status-badge status-warning">⚠️ REDIRECCIÓN</span>';
+                    icon = '⚠️';
+                } else {
+                    statusClass = 'error';
+                    statusBadge = '<span class="status-badge status-error">❌ ERROR</span>';
+                    icon = '❌';
+                }
+            } else {
+                statusClass = 'error';
+                statusBadge = '<span class="status-badge status-error">❌ OFFLINE</span>';
+                icon = '❌';
+            }
+
+            resultDiv.className = `result-container ${statusClass}`;
             
-            // Determinar badge status
-            let badgeClass = 'error';
-            if (data.statusCategory === 'success') badgeClass = 'success';
-            else if (data.statusCategory === 'redirect') badgeClass = 'redirect';
-            
-            // Formatear tiempo de respuesta
-            const responseTimeText = data.responseTime > 0 ? `${data.responseTime}ms` : 'N/A';
-            
-            // Formatear timestamp
             const timestamp = new Date(data.timestamp).toLocaleString('es-ES');
             
-            resultContainer.className = `result-container ${categoryClass}`;
-            resultContainer.innerHTML = `
-                <div class="status-badge ${badgeClass}">
-                    HTTP ${data.status} - ${data.statusText || 'Unknown'}
+            resultDiv.innerHTML = `
+                <div class="result-title">
+                    ${icon} Resultado del Ping ${statusBadge}
                 </div>
-                <h3>${data.message}</h3>
-                
                 <div class="result-details">
                     <div class="detail-item">
-                        <div class="detail-label">Estado</div>
-                        <div class="detail-value">${data.success ? '✅ Accesible' : '❌ No accesible'}</div>
-                    </div>
-                    <div class="detail-item">
-                        <div class="detail-label">Código HTTP</div>
-                        <div class="detail-value">${data.status}</div>
+                        <div class="detail-label">Estado HTTP</div>
+                        <div class="detail-value">${data.status} - ${data.statusText}</div>
                     </div>
                     <div class="detail-item">
                         <div class="detail-label">Tiempo de Respuesta</div>
-                        <div class="detail-value">${responseTimeText}</div>
+                        <div class="detail-value">${data.responseTime} ms</div>
                     </div>
                     <div class="detail-item">
-                        <div class="detail-label">Verificado</div>
+                        <div class="detail-label">Mensaje</div>
+                        <div class="detail-value">${data.message}</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">Timestamp</div>
+                        <div class="detail-value">${timestamp}</div>
+                    </div>
+                    ${data.error ? `
+                    <div class="detail-item">
+                        <div class="detail-label">Error</div>
+                        <div class="detail-value">${data.error}</div>
+                    </div>
+                    ` : ''}
+                </div>
+            `;
+        }
+
+        // Mostrar información del servidor
+        function displayServerInfo(data) {
+            serverInfoDiv.style.display = 'block';
+            
+            const timestamp = new Date(data.timestamp).toLocaleString('es-ES');
+            
+            serverInfoDiv.innerHTML = `
+                <h3>📍 Información del Servidor</h3>
+                <div class="result-details">
+                    <div class="detail-item">
+                        <div class="detail-label">IP Pública</div>
+                        <div class="detail-value">${data.ip}</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">Ubicación</div>
+                        <div class="detail-value">${data.city}, ${data.region}</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">País</div>
+                        <div class="detail-value">${data.country} (${data.countryCode})</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">Proveedor (ISP)</div>
+                        <div class="detail-value">${data.isp}</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">Zona Horaria</div>
+                        <div class="detail-value">${data.timezone}</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">Puerto</div>
+                        <div class="detail-value">${data.port}</div>
+                    </div>
+                    ${data.latitude && data.longitude ? `
+                    <div class="detail-item">
+                        <div class="detail-label">Coordenadas</div>
+                        <div class="detail-value">${data.latitude}, ${data.longitude}</div>
+                    </div>
+                    ` : ''}
+                    <div class="detail-item">
+                        <div class="detail-label">Última actualización</div>
                         <div class="detail-value">${timestamp}</div>
                     </div>
                 </div>
-                
-                ${data.error ? `<div style="margin-top: 15px; padding: 10px; background: rgba(220, 53, 69, 0.1); border-radius: 8px;"><strong>Error:</strong> ${data.error}</div>` : ''}
             `;
-            
-            resultContainer.classList.remove('hidden');
         }
-        
-        function displayError(errorMessage) {
-            const resultContainer = document.getElementById('resultContainer');
-            
-            resultContainer.className = 'result-container internal-error';
-            resultContainer.innerHTML = `
-                <div class="status-badge error">Error</div>
-                <h3>Error del Sistema</h3>
-                <div style="margin-top: 15px; padding: 15px; background: rgba(220, 53, 69, 0.1); border-radius: 8px;">
-                    <strong>Detalles:</strong> ${errorMessage}
+
+        // Mostrar error
+        function displayError(message) {
+            resultDiv.style.display = 'block';
+            resultDiv.className = 'result-container error';
+            resultDiv.innerHTML = `
+                <div class="result-title">
+                    ❌ Error
                 </div>
+                <p>${message}</p>
             `;
-            
-            resultContainer.classList.remove('hidden');
         }
-        
-        // Verificar automáticamente al cargar la página
+
+        // Event listeners
+        pingBtn.addEventListener('click', doPing);
+        serverInfoBtn.addEventListener('click', getServerInfo);
+
+        // Ejecutar ping automáticamente al cargar la página
         window.addEventListener('load', () => {
-            setTimeout(checkPing, 1000);
+            setTimeout(() => {
+                doPing();
+                getServerInfo();
+            }, 1000);
         });
     </script>
 </body>

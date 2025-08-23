@@ -1,4 +1,5 @@
 import express from 'express';
+import axios from 'axios';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 
@@ -10,6 +11,65 @@ const PORT = process.env.PORT || 3579;
 
 // Configurar archivos estáticos
 app.use(express.static('public'));
+
+// Función para obtener información del servidor
+async function getServerInfo() {
+  try {
+    // Usar ipapi.co para obtener IP y ubicación
+    const response = await axios.get('https://ipapi.co/json/', {
+      timeout: 5000,
+      headers: {
+        'User-Agent': 'Express-Ping-Checker/1.0'
+      }
+    });
+    
+    return {
+      success: true,
+      ip: response.data.ip,
+      city: response.data.city,
+      region: response.data.region,
+      country: response.data.country_name,
+      countryCode: response.data.country_code,
+      timezone: response.data.timezone,
+      isp: response.data.org,
+      latitude: response.data.latitude,
+      longitude: response.data.longitude
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error.message,
+      ip: 'No disponible',
+      city: 'No disponible',
+      region: 'No disponible',
+      country: 'No disponible',
+      countryCode: 'N/A',
+      timezone: 'No disponible',
+      isp: 'No disponible',
+      latitude: null,
+      longitude: null
+    };
+  }
+}
+
+// Endpoint para obtener información del servidor
+app.get('/api/server-info', async (req, res) => {
+  try {
+    const serverInfo = await getServerInfo();
+    res.json({
+      ...serverInfo,
+      timestamp: new Date().toISOString(),
+      hostname: req.hostname,
+      port: PORT
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
 
 // Función para hacer ping a una URL
 async function pingUrl(url) {

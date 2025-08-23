@@ -75,7 +75,7 @@ app.get('/api/server-info', async (req, res) => {
   }
 });
 
-// Función para hacer ping usando navegador headless
+// Función mejorada para hacer ping usando navegador headless
 async function pingUrlWithBrowser(url) {
   let browser = null;
   let page = null;
@@ -86,7 +86,7 @@ async function pingUrlWithBrowser(url) {
     
     const startTime = Date.now();
     
-    // Configurar Puppeteer
+    // Configurar Puppeteer con más opciones para sitios gubernamentales
     browser = await puppeteer.launch({
       headless: 'new',
       args: [
@@ -102,55 +102,144 @@ async function pingUrlWithBrowser(url) {
         '--ignore-certificate-errors-spki-list',
         '--disable-web-security',
         '--allow-running-insecure-content',
-        '--disable-features=VizDisplayCompositor'
+        '--disable-features=VizDisplayCompositor',
+        '--disable-background-timer-throttling',
+        '--disable-backgrounding-occluded-windows',
+        '--disable-renderer-backgrounding',
+        '--disable-blink-features=AutomationControlled',
+        '--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36'
       ]
     });
     
     page = await browser.newPage();
     
-    // Ignorar errores de certificados SSL
-    await page.setBypassCSP(true);
+    // Configurar página para parecer más real
+    await page.evaluateOnNewDocument(() => {
+      // Eliminar propiedades que detectan automatización
+      Object.defineProperty(navigator, 'webdriver', {
+        get: () => undefined,
+      });
+      
+      // Simular plugins del navegador
+      Object.defineProperty(navigator, 'plugins', {
+        get: () => [1, 2, 3, 4, 5],
+      });
+      
+      // Simular idiomas
+      Object.defineProperty(navigator, 'languages', {
+        get: () => ['es-ES', 'es', 'en'],
+      });
+      
+      // Eliminar la detección de Chrome headless
+      window.chrome = {
+        runtime: {},
+      };
+      
+      // Mock de permisos
+      const originalQuery = window.navigator.permissions.query;
+      return window.navigator.permissions.query = (parameters) => (
+        parameters.name === 'notifications' ?
+          Promise.resolve({ state: Cypress.env('NOTIFICATION_PERMISSION_STATE') || 'granted' }) :
+          originalQuery(parameters)
+      );
+    });
     
-    // Configurar User-Agent y viewport
+    // Configurar User-Agent y viewport más realistas
     await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36');
     await page.setViewport({ width: 1920, height: 1080 });
     
-    // Configurar timeout
-    page.setDefaultTimeout(15000);
-    page.setDefaultNavigationTimeout(15000);
+    // Configurar headers adicionales
+    await page.setExtraHTTPHeaders({
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+      'Accept-Language': 'es-ES,es;q=0.9,en;q=0.8',
+      'Accept-Encoding': 'gzip, deflate, br',
+      'DNT': '1',
+      'Connection': 'keep-alive',
+      'Upgrade-Insecure-Requests': '1',
+      'Sec-Fetch-Dest': 'document',
+      'Sec-Fetch-Mode': 'navigate',
+      'Sec-Fetch-Site': 'none',
+      'Sec-Fetch-User': '?1',
+      'Cache-Control': 'max-age=0'
+    });
+    
+    // Ignorar errores de certificados SSL
+    await page.setBypassCSP(true);
+    
+    // Configurar timeout más largo para challenges JavaScript
+    page.setDefaultTimeout(45000);
+    page.setDefaultNavigationTimeout(45000);
+    
+    console.log(`🌐 Navegando a: ${url}`);
     
     // Navegar a la URL
     const response = await page.goto(url, { 
       waitUntil: 'networkidle2',
-      timeout: 15000 
+      timeout: 45000 
     });
+    
+    console.log(`📡 Respuesta inicial recibida: ${response.status()}`);
+    
+    // Espera adicional para que se resuelva el challenge JavaScript
+    console.log('⏳ Esperando resolución de challenge JavaScript...');
+    await page.waitForTimeout(8000);
+    
+    // Verificar si aún estamos en una página de challenge
+    const bodyText = await page.evaluate(() => document.body.textContent || '');
+    const isChallengePage = bodyText.includes('Please enable JavaScript') || 
+                           bodyText.includes('support ID is') ||
+                           bodyText.includes('challenge');
+    
+    if (isChallengePage) {
+      console.log('🔄 Challenge detectado, esperando resolución adicional...');
+      // Esperar más tiempo si detectamos un challenge
+      await page.waitForTimeout(10000);
+      
+      // Intentar interactuar con la página (mover mouse, scroll)
+      await page.mouse.move(100, 100);
+      await page.evaluate(() => window.scrollBy(0, 100));
+      await page.waitForTimeout(3000);
+    }
     
     const endTime = Date.now();
     const responseTime = endTime - startTime;
     
-    // Obtener información adicional de la página
+    // Obtener información actualizada de la página
     const title = await page.title().catch(() => 'No disponible');
     const finalUrl = page.url();
+    const finalBodyText = await page.evaluate(() => document.body.textContent || '');
     
-    // Verificar si hay JavaScript errors
+    // Verificar si el sitio finalmente cargó correctamente
+    const isWorking = !finalBodyText.includes('Please enable JavaScript') && 
+                     !finalBodyText.includes('Request Rejected') &&
+                     finalBodyText.length > 100; // Asumimos que una página real tiene más contenido
+    
+    // Capturar JavaScript errors
     const jsErrors = [];
     page.on('pageerror', error => {
       jsErrors.push(error.message);
     });
     
+    console.log(`✅ Ping completado en ${responseTime}ms - Estado: ${isWorking ? 'ONLINE' : 'OFFLINE'}`);
+    
     return {
-      success: true,
-      status: response.status,
-      statusText: response.statusText,
+      success: isWorking,
+      status: response.status(),
+      statusText: response.statusText(),
       responseTime: responseTime,
       url: url,
       finalUrl: finalUrl,
       title: title,
       redirected: finalUrl !== url,
       jsErrors: jsErrors,
+      challengeDetected: isChallengePage,
+      contentLength: finalBodyText.length,
+      isWorking: isWorking,
       timestamp: new Date().toISOString()
     };
   } catch (error) {
+    console.error(`❌ Error en ping: ${error.message}`);
+    
     return {
       success: false,
       status: 0,
@@ -161,12 +250,27 @@ async function pingUrlWithBrowser(url) {
       finalUrl: url,
       title: 'No disponible',
       redirected: false,
-      jsErrors: [],
+      jsErrors: [error.message],
+      challengeDetected: false,
+      contentLength: 0,
+      isWorking: false,
       timestamp: new Date().toISOString()
     };
   } finally {
-    if (page) await page.close().catch(() => {});
-    if (browser) await browser.close().catch(() => {});
+    if (page) {
+      try {
+        await page.close();
+      } catch (e) {
+        console.warn('Error cerrando página:', e.message);
+      }
+    }
+    if (browser) {
+      try {
+        await browser.close();
+      } catch (e) {
+        console.warn('Error cerrando navegador:', e.message);
+      }
+    }
   }
 }
 
@@ -175,35 +279,40 @@ app.get('/api/ping', async (req, res) => {
   const targetUrl = req.query.url || 'https://icp.administracionelectronica.gob.es/icpplus/index.html';
   
   try {
+    console.log(`🎯 Iniciando ping a: ${targetUrl}`);
     const result = await pingUrlWithBrowser(targetUrl);
     
     // Determinar el status HTTP basado en el resultado
-    if (result.success) {
-      if (result.status >= 200 && result.status < 300) {
-        res.status(200).json({
-          ...result,
-          message: 'Sitio web accesible',
-          statusCategory: 'success'
-        });
-      } else if (result.status >= 300 && result.status < 400) {
-        res.status(200).json({
-          ...result,
-          message: 'Redirección detectada',
-          statusCategory: 'redirect'
-        });
-      } else if (result.status >= 400 && result.status < 500) {
-        res.status(200).json({
-          ...result,
-          message: 'Error del cliente',
-          statusCategory: 'client-error'
-        });
-      } else if (result.status >= 500) {
-        res.status(200).json({
-          ...result,
-          message: 'Error del servidor',
-          statusCategory: 'server-error'
-        });
-      }
+    if (result.success && result.isWorking) {
+      res.status(200).json({
+        ...result,
+        message: 'Sitio web accesible y funcionando',
+        statusCategory: 'success'
+      });
+    } else if (result.status >= 200 && result.status < 300 && result.challengeDetected) {
+      res.status(200).json({
+        ...result,
+        message: 'Sitio accesible pero con protección anti-bot activa',
+        statusCategory: 'challenge-detected'
+      });
+    } else if (result.status >= 300 && result.status < 400) {
+      res.status(200).json({
+        ...result,
+        message: 'Redirección detectada',
+        statusCategory: 'redirect'
+      });
+    } else if (result.status >= 400 && result.status < 500) {
+      res.status(200).json({
+        ...result,
+        message: 'Error del cliente',
+        statusCategory: 'client-error'
+      });
+    } else if (result.status >= 500) {
+      res.status(200).json({
+        ...result,
+        message: 'Error del servidor',
+        statusCategory: 'server-error'
+      });
     } else {
       res.status(200).json({
         ...result,
@@ -212,6 +321,7 @@ app.get('/api/ping', async (req, res) => {
       });
     }
   } catch (error) {
+    console.error('Error en endpoint ping:', error);
     res.status(500).json({
       success: false,
       error: error.message,
@@ -237,43 +347,31 @@ app.post('/api/ping', async (req, res) => {
   }
   
   try {
+    console.log(`🎯 Iniciando ping POST a: ${url}`);
     const result = await pingUrlWithBrowser(url);
     
-    // Determinar el status HTTP basado en el resultado
-    if (result.success) {
-      if (result.status >= 200 && result.status < 300) {
-        res.status(200).json({
-          ...result,
-          message: 'Sitio web accesible',
-          statusCategory: 'success'
-        });
-      } else if (result.status >= 300 && result.status < 400) {
-        res.status(200).json({
-          ...result,
-          message: 'Redirección detectada',
-          statusCategory: 'redirect'
-        });
-      } else if (result.status >= 400 && result.status < 500) {
-        res.status(200).json({
-          ...result,
-          message: 'Error del cliente',
-          statusCategory: 'client-error'
-        });
-      } else if (result.status >= 500) {
-        res.status(200).json({
-          ...result,
-          message: 'Error del servidor',
-          statusCategory: 'server-error'
-        });
-      }
+    // Usar la misma lógica que el GET
+    if (result.success && result.isWorking) {
+      res.status(200).json({
+        ...result,
+        message: 'Sitio web accesible y funcionando',
+        statusCategory: 'success'
+      });
+    } else if (result.status >= 200 && result.status < 300 && result.challengeDetected) {
+      res.status(200).json({
+        ...result,
+        message: 'Sitio accesible pero con protección anti-bot activa',
+        statusCategory: 'challenge-detected'
+      });
     } else {
       res.status(200).json({
         ...result,
-        message: 'No se pudo conectar al sitio web',
+        message: result.error || 'No se pudo conectar al sitio web',
         statusCategory: 'connection-error'
       });
     }
   } catch (error) {
+    console.error('Error en endpoint ping POST:', error);
     res.status(500).json({
       success: false,
       error: error.message,
@@ -290,6 +388,7 @@ app.get('/', (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`Servidor ejecutándose en http://localhost:${PORT}`);
-  console.log(`Endpoint de ping disponible en: http://localhost:${PORT}/api/ping`);
+  console.log(`🚀 Servidor ejecutándose en http://localhost:${PORT}`);
+  console.log(`📊 Endpoint de ping disponible en: http://localhost:${PORT}/api/ping`);
+  console.log(`🌐 URL objetivo por defecto: https://icp.administracionelectronica.gob.es/icpplus/index.html`);
 });

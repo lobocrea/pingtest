@@ -86,9 +86,9 @@ async function pingUrlWithBrowser(url) {
     
     const startTime = Date.now();
     
-    // Configurar Puppeteer con más opciones para sitios gubernamentales
+    // Configurar Puppeteer con opciones específicas para sitios gubernamentales
     browser = await puppeteer.launch({
-      headless: 'new',
+      headless: true, // Cambiado de 'new' a true para mejor compatibilidad
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
@@ -106,8 +106,7 @@ async function pingUrlWithBrowser(url) {
         '--disable-background-timer-throttling',
         '--disable-backgrounding-occluded-windows',
         '--disable-renderer-backgrounding',
-        '--disable-blink-features=AutomationControlled',
-        '--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36'
+        '--disable-blink-features=AutomationControlled'
       ]
     });
     
@@ -134,14 +133,6 @@ async function pingUrlWithBrowser(url) {
       window.chrome = {
         runtime: {},
       };
-      
-      // Mock de permisos
-      const originalQuery = window.navigator.permissions.query;
-      return window.navigator.permissions.query = (parameters) => (
-        parameters.name === 'notifications' ?
-          Promise.resolve({ state: Cypress.env('NOTIFICATION_PERMISSION_STATE') || 'granted' }) :
-          originalQuery(parameters)
-      );
     });
     
     // Configurar User-Agent y viewport más realistas
@@ -163,42 +154,73 @@ async function pingUrlWithBrowser(url) {
       'Cache-Control': 'max-age=0'
     });
     
-    // Ignorar errores de certificados SSL
-    await page.setBypassCSP(true);
-    
     // Configurar timeout más largo para challenges JavaScript
-    page.setDefaultTimeout(45000);
-    page.setDefaultNavigationTimeout(45000);
+    page.setDefaultTimeout(60000);
+    page.setDefaultNavigationTimeout(60000);
+    
+    // Capturar errores JavaScript en una lista
+    const jsErrors = [];
+    page.on('pageerror', error => {
+      jsErrors.push(error.message);
+      console.warn('🚨 JavaScript Error:', error.message);
+    });
     
     console.log(`🌐 Navegando a: ${url}`);
     
     // Navegar a la URL
     const response = await page.goto(url, { 
-      waitUntil: 'networkidle2',
-      timeout: 45000 
+      waitUntil: 'networkidle0', // Cambiado a networkidle0 para esperar más
+      timeout: 60000 
     });
     
     console.log(`📡 Respuesta inicial recibida: ${response.status()}`);
     
-    // Espera adicional para que se resuelva el challenge JavaScript
-    console.log('⏳ Esperando resolución de challenge JavaScript...');
-    await page.waitForTimeout(8000);
+    // Usar setTimeout nativo de Node.js en lugar de page.waitForTimeout
+    console.log('⏳ Esperando resolución de challenge JavaScript (10 segundos)...');
+    await new Promise(resolve => setTimeout(resolve, 10000));
     
     // Verificar si aún estamos en una página de challenge
-    const bodyText = await page.evaluate(() => document.body.textContent || '');
-    const isChallengePage = bodyText.includes('Please enable JavaScript') || 
-                           bodyText.includes('support ID is') ||
-                           bodyText.includes('challenge');
+    let bodyText = await page.evaluate(() => document.body.textContent || '').catch(() => '');
+    let isChallengePage = bodyText.includes('Please enable JavaScript') || 
+                         bodyText.includes('support ID is') ||
+                         bodyText.includes('challenge') ||
+                         bodyText.includes('bobcmn');
     
     if (isChallengePage) {
       console.log('🔄 Challenge detectado, esperando resolución adicional...');
-      // Esperar más tiempo si detectamos un challenge
-      await page.waitForTimeout(10000);
       
-      // Intentar interactuar con la página (mover mouse, scroll)
-      await page.mouse.move(100, 100);
-      await page.evaluate(() => window.scrollBy(0, 100));
-      await page.waitForTimeout(3000);
+      // Intentar interactuar con la página de manera más realista
+      try {
+        await page.mouse.move(Math.random() * 500 + 100, Math.random() * 500 + 100);
+        await page.evaluate(() => {
+          // Simular scroll suave
+          window.scrollBy(0, 100);
+          // Disparar eventos que el challenge podría esperar
+          window.dispatchEvent(new Event('mousemove'));
+          window.dispatchEvent(new Event('focus'));
+        });
+        
+        // Esperar más tiempo para que el challenge se resuelva
+        await new Promise(resolve => setTimeout(resolve, 15000));
+        
+        // Verificar nuevamente
+        bodyText = await page.evaluate(() => document.body.textContent || '').catch(() => '');
+        isChallengePage = bodyText.includes('Please enable JavaScript') || 
+                         bodyText.includes('support ID is') ||
+                         bodyText.includes('challenge') ||
+                         bodyText.includes('bobcmn');
+        
+        // Si aún es challenge, intentar un último reload
+        if (isChallengePage) {
+          console.log('🔄 Último intento: recargando página...');
+          await page.reload({ waitUntil: 'networkidle0', timeout: 30000 });
+          await new Promise(resolve => setTimeout(resolve, 5000));
+          bodyText = await page.evaluate(() => document.body.textContent || '').catch(() => '');
+        }
+        
+      } catch (interactionError) {
+        console.warn('⚠️ Error en interacción:', interactionError.message);
+      }
     }
     
     const endTime = Date.now();
@@ -207,23 +229,20 @@ async function pingUrlWithBrowser(url) {
     // Obtener información actualizada de la página
     const title = await page.title().catch(() => 'No disponible');
     const finalUrl = page.url();
-    const finalBodyText = await page.evaluate(() => document.body.textContent || '');
+    const finalBodyText = await page.evaluate(() => document.body.textContent || '').catch(() => '');
     
     // Verificar si el sitio finalmente cargó correctamente
-    const isWorking = !finalBodyText.includes('Please enable JavaScript') && 
-                     !finalBodyText.includes('Request Rejected') &&
-                     finalBodyText.length > 100; // Asumimos que una página real tiene más contenido
+    const challengeKeywords = ['Please enable JavaScript', 'Request Rejected', 'support ID is', 'challenge', 'bobcmn'];
+    const hasChallenge = challengeKeywords.some(keyword => finalBodyText.includes(keyword));
+    const isWorking = !hasChallenge && finalBodyText.length > 100;
     
-    // Capturar JavaScript errors
-    const jsErrors = [];
-    page.on('pageerror', error => {
-      jsErrors.push(error.message);
-    });
-    
-    console.log(`✅ Ping completado en ${responseTime}ms - Estado: ${isWorking ? 'ONLINE' : 'OFFLINE'}`);
+    // Información de debug
+    console.log(`📊 Contenido length: ${finalBodyText.length}`);
+    console.log(`🔍 Challenge detectado: ${hasChallenge}`);
+    console.log(`✅ Sitio funcionando: ${isWorking}`);
     
     return {
-      success: isWorking,
+      success: response.status() >= 200 && response.status() < 400,
       status: response.status(),
       statusText: response.statusText(),
       responseTime: responseTime,
@@ -232,9 +251,10 @@ async function pingUrlWithBrowser(url) {
       title: title,
       redirected: finalUrl !== url,
       jsErrors: jsErrors,
-      challengeDetected: isChallengePage,
+      challengeDetected: hasChallenge,
       contentLength: finalBodyText.length,
       isWorking: isWorking,
+      contentPreview: finalBodyText.substring(0, 200) + (finalBodyText.length > 200 ? '...' : ''),
       timestamp: new Date().toISOString()
     };
   } catch (error) {
@@ -245,7 +265,7 @@ async function pingUrlWithBrowser(url) {
       status: 0,
       statusText: 'Error',
       error: error.message,
-      responseTime: 0,
+      responseTime: Date.now() - startTime,
       url: url,
       finalUrl: url,
       title: 'No disponible',
@@ -254,6 +274,7 @@ async function pingUrlWithBrowser(url) {
       challengeDetected: false,
       contentLength: 0,
       isWorking: false,
+      contentPreview: '',
       timestamp: new Date().toISOString()
     };
   } finally {

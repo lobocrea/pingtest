@@ -179,6 +179,65 @@
             gap: 15px;
             margin-top: 20px;
         }
+        
+        .iframe-container {
+            margin-top: 20px;
+            border: 2px solid #e9ecef;
+            border-radius: 10px;
+            overflow: hidden;
+            background: white;
+        }
+        
+        .iframe-header {
+            background: #f8f9fa;
+            padding: 10px 15px;
+            border-bottom: 1px solid #e9ecef;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .iframe-title {
+            font-weight: 600;
+            color: #495057;
+        }
+        
+        .iframe-controls {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .iframe-btn {
+            background: #6c757d;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: background 0.3s ease;
+        }
+        
+        .iframe-btn:hover {
+            background: #5a6268;
+        }
+        
+        .iframe-content {
+            width: 100%;
+            height: 400px;
+            border: none;
+            background: white;
+        }
+        
+        .iframe-placeholder {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 400px;
+            background: #f8f9fa;
+            color: #6c757d;
+            font-style: italic;
+        }
 
         .detail-item {
             background: rgba(255, 255, 255, 0.7);
@@ -409,6 +468,43 @@
             
             const timestamp = new Date(data.timestamp).toLocaleString('es-ES');
             
+            // Crear iframe HTML si tenemos el HTML de la página
+            let iframeHtml = '';
+            if (data.cacheKey && data.pageHtml) {
+                iframeHtml = `
+                    <div class="iframe-container">
+                        <div class="iframe-header">
+                            <div class="iframe-title">📄 Vista previa de la página</div>
+                            <div class="iframe-controls">
+                                <button class="iframe-btn" onclick="toggleIframeSize()">📏 Cambiar tamaño</button>
+                                <button class="iframe-btn" onclick="refreshIframe()">🔄 Recargar</button>
+                            </div>
+                        </div>
+                        <iframe 
+                            id="pageIframe" 
+                            class="iframe-content" 
+                            srcdoc="${data.pageHtml.replace(/"/g, '&quot;')}"
+                            title="Vista previa de ${data.url}"
+                        ></iframe>
+                    </div>
+                `;
+            } else if (data.cacheKey) {
+                iframeHtml = `
+                    <div class="iframe-container">
+                        <div class="iframe-header">
+                            <div class="iframe-title">📄 Vista previa de la página</div>
+                            <div class="iframe-controls">
+                                <button class="iframe-btn" onclick="loadIframeFromCache('${data.cacheKey}')">📄 Cargar página</button>
+                                <button class="iframe-btn" onclick="refreshIframe()">🔄 Recargar</button>
+                            </div>
+                        </div>
+                        <div class="iframe-placeholder">
+                            Haz clic en "Cargar página" para ver la vista previa
+                        </div>
+                    </div>
+                `;
+            }
+            
             resultDiv.innerHTML = `
                 <div class="result-title">
                     ${icon} Resultado del Ping ${statusBadge}
@@ -453,6 +549,7 @@
                     </div>
                     ` : ''}
                 </div>
+                ${iframeHtml}
             `;
         }
 
@@ -515,6 +612,42 @@
             `;
         }
 
+        // Funciones para manejar el iframe
+        function toggleIframeSize() {
+            const iframe = document.getElementById('pageIframe');
+            if (iframe) {
+                if (iframe.style.height === '600px') {
+                    iframe.style.height = '400px';
+                } else {
+                    iframe.style.height = '600px';
+                }
+            }
+        }
+        
+        function refreshIframe() {
+            const iframe = document.getElementById('pageIframe');
+            if (iframe) {
+                iframe.src = iframe.src;
+            }
+        }
+        
+        async function loadIframeFromCache(cacheKey) {
+            try {
+                const response = await fetch(`/api/page-html/${encodeURIComponent(cacheKey)}`);
+                if (response.ok) {
+                    const html = await response.text();
+                    const iframe = document.getElementById('pageIframe');
+                    if (iframe) {
+                        iframe.srcdoc = html;
+                    }
+                } else {
+                    alert('Error al cargar la página desde el caché');
+                }
+            } catch (error) {
+                alert('Error al cargar la página: ' + error.message);
+            }
+        }
+        
         // Event listeners
         pingBtn.addEventListener('click', doPing);
         serverInfoBtn.addEventListener('click', getServerInfo);

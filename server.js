@@ -88,7 +88,7 @@ async function pingUrlWithBrowser(url) {
     
     // Configurar Puppeteer con opciones específicas para sitios gubernamentales
     browser = await puppeteer.launch({
-      headless: true, // Cambiado de 'new' a true para mejor compatibilidad
+      headless: true, // Cambiado a true para mejor rendimiento
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
@@ -106,7 +106,34 @@ async function pingUrlWithBrowser(url) {
         '--disable-background-timer-throttling',
         '--disable-backgrounding-occluded-windows',
         '--disable-renderer-backgrounding',
-        '--disable-blink-features=AutomationControlled'
+        '--disable-blink-features=AutomationControlled',
+        '--disable-extensions',
+        '--disable-plugins',
+        '--disable-images',
+        '--disable-javascript',
+        '--disable-default-apps',
+        '--disable-sync',
+        '--disable-translate',
+        '--hide-scrollbars',
+        '--mute-audio',
+        '--no-default-browser-check',
+        '--disable-component-extensions-with-background-pages',
+        '--disable-background-networking',
+        '--disable-background-timer-throttling',
+        '--disable-client-side-phishing-detection',
+        '--disable-default-apps',
+        '--disable-domain-reliability',
+        '--disable-features=TranslateUI',
+        '--disable-ipc-flooding-protection',
+        '--disable-renderer-backgrounding',
+        '--disable-sync',
+        '--force-color-profile=srgb',
+        '--metrics-recording-only',
+        '--no-first-run',
+        '--password-store=basic',
+        '--use-mock-keychain',
+        '--disable-features=site-per-process',
+        '--disable-site-isolation-trials'
       ]
     });
     
@@ -132,6 +159,52 @@ async function pingUrlWithBrowser(url) {
       // Eliminar la detección de Chrome headless
       window.chrome = {
         runtime: {},
+      };
+      
+      // Simular propiedades adicionales del navegador
+      Object.defineProperty(navigator, 'hardwareConcurrency', {
+        get: () => 8,
+      });
+      
+      Object.defineProperty(navigator, 'deviceMemory', {
+        get: () => 8,
+      });
+      
+      Object.defineProperty(navigator, 'maxTouchPoints', {
+        get: () => 0,
+      });
+      
+      // Simular permisos
+      const originalQuery = window.navigator.permissions.query;
+      window.navigator.permissions.query = (parameters) => (
+        parameters.name === 'notifications' ?
+          Promise.resolve({ state: Notification.permission }) :
+          originalQuery(parameters)
+      );
+      
+      // Simular WebGL
+      const getParameter = WebGLRenderingContext.prototype.getParameter;
+      WebGLRenderingContext.prototype.getParameter = function(parameter) {
+        if (parameter === 37445) {
+          return 'Intel Inc.';
+        }
+        if (parameter === 37446) {
+          return 'Intel(R) Iris(TM) Graphics 6100';
+        }
+        return getParameter.apply(this, arguments);
+      };
+      
+      // Simular canvas fingerprinting
+      const originalGetContext = HTMLCanvasElement.prototype.getContext;
+      HTMLCanvasElement.prototype.getContext = function(type, ...args) {
+        const context = originalGetContext.apply(this, [type, ...args]);
+        if (type === '2d') {
+          const originalFillText = context.fillText;
+          context.fillText = function(...args) {
+            return originalFillText.apply(this, args);
+          };
+        }
+        return context;
       };
     });
     
@@ -176,46 +249,99 @@ async function pingUrlWithBrowser(url) {
     console.log(`📡 Respuesta inicial recibida: ${response.status()}`);
     
     // Usar setTimeout nativo de Node.js en lugar de page.waitForTimeout
-    console.log('⏳ Esperando resolución de challenge JavaScript (10 segundos)...');
-    await new Promise(resolve => setTimeout(resolve, 10000));
+    console.log('⏳ Esperando resolución de challenge JavaScript (15 segundos)...');
+    await new Promise(resolve => setTimeout(resolve, 15000));
     
     // Verificar si aún estamos en una página de challenge
     let bodyText = await page.evaluate(() => document.body.textContent || '').catch(() => '');
     let isChallengePage = bodyText.includes('Please enable JavaScript') || 
                          bodyText.includes('support ID is') ||
                          bodyText.includes('challenge') ||
-                         bodyText.includes('bobcmn');
+                         bodyText.includes('bobcmn') ||
+                         bodyText.includes('Request Rejected');
     
     if (isChallengePage) {
-      console.log('🔄 Challenge detectado, esperando resolución adicional...');
+      console.log('🔄 Challenge detectado, aplicando técnicas de evasión avanzadas...');
       
       // Intentar interactuar con la página de manera más realista
       try {
-        await page.mouse.move(Math.random() * 500 + 100, Math.random() * 500 + 100);
+        // Simular movimientos del mouse más naturales
+        for (let i = 0; i < 3; i++) {
+          await page.mouse.move(Math.random() * 800 + 100, Math.random() * 600 + 100);
+          await new Promise(resolve => setTimeout(resolve, Math.random() * 1000 + 500));
+        }
+        
+        // Simular scroll natural
         await page.evaluate(() => {
-          // Simular scroll suave
-          window.scrollBy(0, 100);
+          // Scroll suave hacia abajo
+          for (let i = 0; i < 5; i++) {
+            setTimeout(() => {
+              window.scrollBy(0, Math.random() * 100 + 50);
+            }, i * 200);
+          }
+          
           // Disparar eventos que el challenge podría esperar
           window.dispatchEvent(new Event('mousemove'));
           window.dispatchEvent(new Event('focus'));
+          window.dispatchEvent(new Event('scroll'));
+          
+          // Simular interacción con elementos de la página
+          const elements = document.querySelectorAll('button, input, a');
+          if (elements.length > 0) {
+            const randomElement = elements[Math.floor(Math.random() * elements.length)];
+            if (randomElement) {
+              randomElement.dispatchEvent(new Event('mouseover'));
+              randomElement.dispatchEvent(new Event('focus'));
+            }
+          }
         });
         
         // Esperar más tiempo para que el challenge se resuelva
-        await new Promise(resolve => setTimeout(resolve, 15000));
+        console.log('⏳ Esperando resolución del challenge (20 segundos)...');
+        await new Promise(resolve => setTimeout(resolve, 20000));
         
         // Verificar nuevamente
         bodyText = await page.evaluate(() => document.body.textContent || '').catch(() => '');
         isChallengePage = bodyText.includes('Please enable JavaScript') || 
                          bodyText.includes('support ID is') ||
                          bodyText.includes('challenge') ||
-                         bodyText.includes('bobcmn');
+                         bodyText.includes('bobcmn') ||
+                         bodyText.includes('Request Rejected');
         
-        // Si aún es challenge, intentar un último reload
+        // Si aún es challenge, intentar técnicas adicionales
         if (isChallengePage) {
-          console.log('🔄 Último intento: recargando página...');
-          await page.reload({ waitUntil: 'networkidle0', timeout: 30000 });
-          await new Promise(resolve => setTimeout(resolve, 5000));
+          console.log('🔄 Aplicando técnicas adicionales de evasión...');
+          
+          // Intentar cambiar el User-Agent dinámicamente
+          await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+          
+          // Simular más interacciones
+          await page.evaluate(() => {
+            // Simular typing en campos de input
+            const inputs = document.querySelectorAll('input[type="text"], input[type="email"]');
+            inputs.forEach(input => {
+              input.focus();
+              input.dispatchEvent(new Event('input'));
+              input.dispatchEvent(new Event('change'));
+            });
+            
+            // Simular clicks en botones
+            const buttons = document.querySelectorAll('button');
+            buttons.forEach(button => {
+              button.dispatchEvent(new Event('click'));
+            });
+          });
+          
+          // Esperar más tiempo
+          await new Promise(resolve => setTimeout(resolve, 10000));
+          
+          // Verificar una última vez
           bodyText = await page.evaluate(() => document.body.textContent || '').catch(() => '');
+          isChallengePage = bodyText.includes('Please enable JavaScript') || 
+                           bodyText.includes('support ID is') ||
+                           bodyText.includes('challenge') ||
+                           bodyText.includes('bobcmn') ||
+                           bodyText.includes('Request Rejected');
         }
         
       } catch (interactionError) {
@@ -231,6 +357,9 @@ async function pingUrlWithBrowser(url) {
     const finalUrl = page.url();
     const finalBodyText = await page.evaluate(() => document.body.textContent || '').catch(() => '');
     
+    // Obtener el HTML completo de la página para el iframe
+    const pageHtml = await page.evaluate(() => document.documentElement.outerHTML).catch(() => '');
+    
     // Verificar si el sitio finalmente cargó correctamente
     const challengeKeywords = ['Please enable JavaScript', 'Request Rejected', 'support ID is', 'challenge', 'bobcmn'];
     const hasChallenge = challengeKeywords.some(keyword => finalBodyText.includes(keyword));
@@ -240,6 +369,11 @@ async function pingUrlWithBrowser(url) {
     console.log(`📊 Contenido length: ${finalBodyText.length}`);
     console.log(`🔍 Challenge detectado: ${hasChallenge}`);
     console.log(`✅ Sitio funcionando: ${isWorking}`);
+    
+    // Guardar HTML en caché global
+    if (!global.pageCache) global.pageCache = {};
+    const cacheKey = new Date().toISOString();
+    global.pageCache[cacheKey] = pageHtml;
     
     return {
       success: response.status() >= 200 && response.status() < 400,
@@ -255,6 +389,8 @@ async function pingUrlWithBrowser(url) {
       contentLength: finalBodyText.length,
       isWorking: isWorking,
       contentPreview: finalBodyText.substring(0, 200) + (finalBodyText.length > 200 ? '...' : ''),
+      pageHtml: pageHtml, // HTML completo para el iframe
+      cacheKey: cacheKey, // Clave para acceder al HTML
       timestamp: new Date().toISOString()
     };
   } catch (error) {
@@ -353,6 +489,25 @@ app.get('/api/ping', async (req, res) => {
   }
 });
 
+// Endpoint para obtener el HTML de la página capturada
+app.get('/api/page-html/:timestamp', async (req, res) => {
+  const { timestamp } = req.params;
+  
+  try {
+    // Buscar en el almacenamiento temporal (en producción usar Redis o similar)
+    if (global.pageCache && global.pageCache[timestamp]) {
+      const html = global.pageCache[timestamp];
+      res.setHeader('Content-Type', 'text/html');
+      res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+      res.send(html);
+    } else {
+      res.status(404).json({ error: 'Página no encontrada en caché' });
+    }
+  } catch (error) {
+    res.status(500).json({ error: 'Error al obtener HTML de la página' });
+  }
+});
+
 // Endpoint POST para hacer ping con URL personalizada
 app.post('/api/ping', async (req, res) => {
   const { url } = req.body;
@@ -408,8 +563,33 @@ app.get('/', (req, res) => {
   res.sendFile(join(__dirname, 'public', 'index.html'));
 });
 
+// Función para limpiar caché antiguo
+function cleanupOldCache() {
+  if (global.pageCache) {
+    const now = new Date();
+    const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000); // 1 hora
+    
+    Object.keys(global.pageCache).forEach(key => {
+      try {
+        const timestamp = new Date(key);
+        if (timestamp < oneHourAgo) {
+          delete global.pageCache[key];
+          console.log(`🗑️ Caché limpiado para: ${key}`);
+        }
+      } catch (error) {
+        // Si la clave no es una fecha válida, eliminarla
+        delete global.pageCache[key];
+      }
+    });
+  }
+}
+
+// Limpiar caché cada 30 minutos
+setInterval(cleanupOldCache, 30 * 60 * 1000);
+
 app.listen(PORT, () => {
   console.log(`🚀 Servidor ejecutándose en http://localhost:${PORT}`);
   console.log(`📊 Endpoint de ping disponible en: http://localhost:${PORT}/api/ping`);
   console.log(`🌐 URL objetivo por defecto: https://icp.administracionelectronica.gob.es/icpplus/index.html`);
+  console.log(`🧹 Limpieza automática de caché cada 30 minutos`);
 });
